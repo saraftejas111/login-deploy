@@ -1,7 +1,7 @@
 
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "./apiServices";
+import { supabase } from "./supabaseClient";
 
 const Signup = () => {
   const [form, setForm] = useState({
@@ -13,14 +13,15 @@ const Signup = () => {
     password: "",
     securityquestion: "What is Your Pet Name?",
     securityanswer: "",
-    propic: "",
   });
+
+  const [imageFile, setImageFile] = useState(null);
+  const [preview, setPreview] = useState("");
 
   const navigateMe = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     setForm({ ...form, [name]: value });
   };
 
@@ -29,43 +30,89 @@ const Signup = () => {
 
     if (!file) return;
 
-    // Accept image files only
     if (!file.type.startsWith("image/")) {
       alert("Please select an image file.");
       e.target.value = "";
       return;
     }
 
-    // Limit image size to 1 MB for this demo
     if (file.size > 1024 * 1024) {
       alert("Please select an image smaller than 1 MB.");
       e.target.value = "";
       return;
     }
 
-    const reader = new FileReader();
-
-    reader.onloadend = () => {
-      setForm((prev) => ({
-        ...prev,
-        propic: reader.result,
-      }));
-    };
-
-    reader.readAsDataURL(file);
+    setImageFile(file);
+    setPreview(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     try {
-      await api.post("/users", form);
+      // 1. Register the account
+      const { data, error } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+        options: {
+          data: {
+            firstname: form.firstname,
+            lastname: form.lastname,
+            mobile: form.mobile,
+            username: form.username,
+          },
+        },
+      });
 
-      alert("Signup successful!");
+      if (error) throw error;
+
+      const user = data.user;
+
+      if (!user) {
+        throw new Error("Account creation failed.");
+      }
+
+      // 2. Upload the image when a session is available
+      if (imageFile && data.session) {
+        const filePath =
+          `${user.id}/${Date.now()}-${imageFile.name}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("avatars")
+          .upload(filePath, imageFile, {
+            contentType: imageFile.type,
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        // 3. Get the public image URL
+        const { data: imageData } = supabase.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+
+        // 4. Save the image URL in the profile
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({ propic: imageData.publicUrl })
+          .eq("id", user.id);
+
+        if (updateError) throw updateError;
+      }
+
+      if (!data.session) {
+        alert(
+          "Account created. Confirm your email, then log in. " +
+          "Your profile picture must be uploaded after login."
+        );
+      } else {
+        alert("Signup successful!");
+      }
+
       navigateMe("/");
     } catch (error) {
       console.error("Signup error:", error);
-      alert("Signup failed. Please try again.");
+      alert("Signup failed: " + error.message);
     }
   };
 
@@ -120,6 +167,7 @@ const Signup = () => {
           value={form.password}
           onChange={handleChange}
           placeholder="Enter password"
+          minLength={6}
           required
         />
         <br /><br />
@@ -140,18 +188,10 @@ const Signup = () => {
           onChange={handleChange}
           required
         >
-          <option value="What is Your Pet Name?">
-            What is Your Pet Name?
-          </option>
-          <option value="What is Your Best Friend Name?">
-            What is Your Best Friend Name?
-          </option>
-          <option value="What is Your Teacher Name?">
-            What is Your Teacher Name?
-          </option>
-          <option value="What is Your Hobby?">
-            What is Your Hobby?
-          </option>
+          <option>What is Your Pet Name?</option>
+          <option>What is Your Best Friend Name?</option>
+          <option>What is Your Teacher Name?</option>
+          <option>What is Your Hobby?</option>
         </select>
         <br /><br />
 
@@ -170,16 +210,15 @@ const Signup = () => {
 
         <input
           type="file"
-          name="propic"
           accept="image/*"
           onChange={handleImageChange}
           required
         />
         <br /><br />
 
-        {form.propic && (
+        {preview && (
           <img
-            src={form.propic}
+            src={preview}
             alt="Profile Preview"
             width="100"
             height="100"
