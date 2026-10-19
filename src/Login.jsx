@@ -6,30 +6,59 @@ import { supabase } from "./supabaseClient";
 const Login = () => {
   const [form, setForm] = useState({
     username: "",
-    password: "",
+    password: ""
   });
 
   const navigateMe = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+
+    setForm({
+      ...form,
+      [name]: value
+    });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    const identifier = form.username.trim();
+    let email = identifier;
+
+    // If the input is not an email, search by username or mobile
+    if (!identifier.includes("@")) {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("email")
+        .or(`username.eq.${identifier},mobile.eq.${identifier}`)
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !data?.email) {
+        alert("Username, email, or mobile number not found.");
+        return;
+      }
+
+      email = data.email;
+    }
+
+    // Verify password using Supabase Auth
     const { error } = await supabase.auth.signInWithPassword({
-      email: form.username.trim(),
-      password: form.password,
+      email: email,
+      password: form.password
     });
 
     if (error) {
-      alert(error.message);
+      alert("Invalid login credentials.");
       return;
     }
 
-    setForm({ username: "", password: "" });
+    setForm({
+      username: "",
+      password: ""
+    });
+
     navigateMe("/dashboard");
   };
 
@@ -39,31 +68,35 @@ const Login = () => {
 
       <form onSubmit={handleSubmit}>
         <input
-          type="email"
+          type="text"
           name="username"
+          placeholder="Enter username, email, or mobile"
           value={form.username}
           onChange={handleChange}
-          placeholder="Enter your registered email"
           required
         />
+
         <br /><br />
 
         <input
           type="password"
           name="password"
+          placeholder="Enter password"
           value={form.password}
           onChange={handleChange}
-          placeholder="Enter password"
           required
         />
+
         <br /><br />
 
         <button type="submit">Login</button>
       </form>
 
-      <br /><br />
+      <p>
+        Don't have an account?{" "}
+        <NavLink to="/signup">Signup</NavLink>
+      </p>
 
-      <NavLink to="/signup">Sign Up</NavLink>{" "}
       <NavLink to="/forgot">Forgot Password?</NavLink>
     </div>
   );
