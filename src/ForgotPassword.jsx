@@ -1,52 +1,116 @@
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
-import { supabase } from "./supabaseClient";
+import { NavLink, useNavigate } from "react-router-dom";
+import { callAccountAccess } from "./accountAccess";
 
 const ForgotPassword = () => {
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [step, setStep] = useState("lookup");
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState("");
+  const navigate = useNavigate();
 
-  const handleSubmit = async (event) => {
+  const run = async (event, action) => {
     event.preventDefault();
-    setMessage("");
+    setBusy(true);
     setError("");
-    setSubmitting(true);
+    setMessage("");
 
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email.trim().toLowerCase(),
-      { redirectTo: `${window.location.origin}/update-password` },
-    );
+    try {
+      if (action === "question") {
+        const result = await callAccountAccess({
+          action: "question",
+          identifier: identifier.trim(),
+        });
+        setQuestion(result.securityQuestion);
+        setStep("answer");
+      }
 
-    setSubmitting(false);
+      if (action === "verify") {
+        await callAccountAccess({
+          action: "verify-answer",
+          identifier: identifier.trim(),
+          securityAnswer: answer,
+        });
+        setStep("password");
+      }
 
-    if (resetError) {
-      setError(resetError.message);
-      return;
+      if (action === "change") {
+        await callAccountAccess({
+          action: "change-password",
+          identifier: identifier.trim(),
+          securityAnswer: answer,
+          newPassword,
+        });
+        setMessage("Password changed. You can now log in with your new password.");
+        setTimeout(() => navigate("/", { replace: true }), 1400);
+      }
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusy(false);
     }
-
-    setMessage("If an account exists for that email, a password reset link has been sent.");
   };
 
   return (
     <div>
-      <h2>Reset password</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="Enter your account email"
-          autoComplete="email"
-          required
-        />
-        <button type="submit" disabled={submitting}>
-          {submitting ? "Sending..." : "Send reset link"}
-        </button>
-      </form>
-      {message && <p role="status">{message}</p>}
+      <h2>Forgot password</h2>
+
+      {step === "lookup" && (
+        <form onSubmit={(event) => run(event, "question")}>
+          <input
+            type="text"
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
+            placeholder="Enter username, email, or mobile"
+            autoComplete="username"
+            required
+          />
+          <button type="submit" disabled={busy}>
+            {busy ? "Checking..." : "Find account"}
+          </button>
+        </form>
+      )}
+
+      {step === "answer" && (
+        <form onSubmit={(event) => run(event, "verify")}>
+          <p>{question}</p>
+          <input
+            type="text"
+            value={answer}
+            onChange={(event) => setAnswer(event.target.value)}
+            placeholder="Your security answer"
+            required
+          />
+          <button type="submit" disabled={busy}>
+            {busy ? "Checking..." : "Verify answer"}
+          </button>
+        </form>
+      )}
+
+      {step === "password" && (
+        <form onSubmit={(event) => run(event, "change")}>
+          <p>Answer verified. Choose a new password.</p>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(event) => setNewPassword(event.target.value)}
+            placeholder="New password"
+            autoComplete="new-password"
+            minLength={6}
+            required
+          />
+          <button type="submit" disabled={busy}>
+            {busy ? "Changing..." : "Change password"}
+          </button>
+        </form>
+      )}
+
       {error && <p role="alert">{error}</p>}
+      {message && <p role="status">{message}</p>}
       <p><NavLink to="/">Back to login</NavLink></p>
     </div>
   );

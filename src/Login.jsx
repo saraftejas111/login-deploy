@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
+import { callAccountAccess } from "./accountAccess";
 
 const Login = () => {
   const [form, setForm] = useState({
@@ -25,37 +26,20 @@ const Login = () => {
     e.preventDefault();
     setErrorMessage("");
 
-    const identifier = form.username.trim();
-    let email = identifier;
+    try {
+      const result = await callAccountAccess({
+        action: "login",
+        identifier: form.username.trim(),
+        password: form.password,
+      });
 
-    // If the input is not an email, search by username or mobile
-    if (!identifier.includes("@")) {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("email")
-        .or(`username.eq.${identifier},mobile.eq.${identifier}`)
-        .limit(1)
-        .maybeSingle();
+      const { error } = await supabase.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      });
 
-      if (error) {
-        setErrorMessage(`Could not look up that username/mobile: ${error.message}`);
-        return;
-      }
-      if (!data?.email) {
-        setErrorMessage("Username or mobile was not found in the profiles table. Try your account email.");
-        return;
-      }
-
-      email = data.email;
-    }
-
-    // Verify password using Supabase Auth
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password: form.password
-    });
-
-    if (error) {
+      if (error) throw error;
+    } catch (error) {
       setErrorMessage(error.message);
       return;
     }
