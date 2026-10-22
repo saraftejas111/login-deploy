@@ -1,123 +1,53 @@
-import React, { useEffect, useState } from "react";
-import { api } from "./apiServices";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { NavLink } from "react-router-dom";
+import { supabase } from "./supabaseClient";
 
 const ForgotPassword = () => {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  const [user, setUser] = useState(null);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setMessage("");
+    setError("");
+    setSubmitting(true);
 
-  const [securityquestion, setSecurityquestion] = useState(null);
-
-  const [securityans, setSecurityans] = useState("");
-
-  const [match, setMatch] = useState(null);
-
-  const [newpass, setNewpass] = useState(null);
-
-  const clearAll = () => {
-    setUsername("");
-    setUser(null);
-    setSecurityquestion(null);
-    setSecurityans("");
-    setMatch(null);
-    setNewpass(null);
-  };
-
-  useEffect(() => {
-    if (user) {
-      setSecurityquestion(user.securityquestion);
-    }
-  }, [user]);
-
-  const navigateMe = useNavigate();
-
-  const hadnleUsername = async (e) => {
-    e.preventDefault();
-
-    setMatch(null);
-    
-    const { data } = await api.get(`/users`);
-
-    const userFound = data.find(
-      (u) =>
-        u.username == username || u.mobile == username || u.email == username,
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+      email.trim().toLowerCase(),
+      { redirectTo: `${window.location.origin}/update-password` },
     );
 
-    if (userFound) {
-      setUser(userFound);
-      console.log("userFound : ", userFound);
-      setUser(userFound);
-    } else {
-      alert("User Not Found with Matching Data");
+    setSubmitting(false);
+
+    if (resetError) {
+      setError(resetError.message);
+      return;
     }
-  };
 
-  const checkAns = () => {
-    if (securityans == user.securityanswer) {
-      console.log("answer matched");
-      setMatch(true);
-    } else {
-      setSecurityans("");
-      alert("Security answer not matched");
-    }
-  };
-
-  const handleNewPass = async (e) => {
-    e.preventDefault();
-    const { data } = await api.put(`/users/${user.id}`, user);
-    console.log("after update : ", data);
-    alert("New Password Set Successfully..");
-    navigateMe("/");
-
-    clearAll();
+    setMessage("If an account exists for that email, a password reset link has been sent.");
   };
 
   return (
     <div>
-      <form onSubmit={hadnleUsername}>
+      <h2>Reset password</h2>
+      <form onSubmit={handleSubmit}>
         <input
-          type="text"
-          placeholder="enter email or username or mobile"
-          onChange={(e) => setUsername(e.target.value)}
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="Enter your account email"
+          autoComplete="email"
           required
-        />{" "}
-        <button type="submit">Check User</button>
+        />
+        <button type="submit" disabled={submitting}>
+          {submitting ? "Sending..." : "Send reset link"}
+        </button>
       </form>
-      {securityquestion && (
-        <>
-          <h3>
-            Welocme {user.firstname}, <br /> <br /> please answer this security
-            question <br /> <br /> {securityquestion}
-          </h3>
-          <input
-            type="text"
-            value={securityans}
-            onChange={(e) => setSecurityans(e.target.value)}
-          />{" "}
-          <br />
-          <br />
-          <button onClick={checkAns}>submit answer</button>
-        </>
-      )}
-
-      <br />
-      <br />
-
-      {match && (
-        <>
-          <form onSubmit={handleNewPass}>
-            <input
-              type="text"
-              onChange={(e) => setUser({ ...user, password: e.target.value })}
-              required
-            />
-            <br />
-            <br />
-            <button>Set New Password</button>
-          </form>
-        </>
-      )}
+      {message && <p role="status">{message}</p>}
+      {error && <p role="alert">{error}</p>}
+      <p><NavLink to="/">Back to login</NavLink></p>
     </div>
   );
 };

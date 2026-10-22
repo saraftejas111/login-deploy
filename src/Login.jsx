@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
@@ -8,6 +8,7 @@ const Login = () => {
     username: "",
     password: ""
   });
+  const [errorMessage, setErrorMessage] = useState("");
 
   const navigateMe = useNavigate();
 
@@ -22,6 +23,7 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage("");
 
     const identifier = form.username.trim();
     let email = identifier;
@@ -35,8 +37,12 @@ const Login = () => {
         .limit(1)
         .maybeSingle();
 
-      if (error || !data?.email) {
-        alert("Username, email, or mobile number not found.");
+      if (error) {
+        setErrorMessage(`Could not look up that username/mobile: ${error.message}`);
+        return;
+      }
+      if (!data?.email) {
+        setErrorMessage("Username or mobile was not found in the profiles table. Try your account email.");
         return;
       }
 
@@ -45,12 +51,12 @@ const Login = () => {
 
     // Verify password using Supabase Auth
     const { error } = await supabase.auth.signInWithPassword({
-      email: email,
+      email: email.trim().toLowerCase(),
       password: form.password
     });
 
     if (error) {
-      alert("Invalid login credentials.");
+      setErrorMessage(error.message);
       return;
     }
 
@@ -91,6 +97,8 @@ const Login = () => {
 
         <button type="submit">Login</button>
       </form>
+
+      {errorMessage && <p role="alert">{errorMessage}</p>}
 
       <p>
         Don't have an account?{" "}

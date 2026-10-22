@@ -1,5 +1,4 @@
 
-import React from "react";
 import "./App.css";
 import { Route, Routes } from "react-router-dom";
 
@@ -8,6 +7,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import Dashboard from "./Dashboard";
 import Signup from "./Signup";
 import ForgotPassword from "./ForgotPassword";
+import UpdatePassword from "./UpdatePassword";
 
 const App = () => {
   return (
@@ -19,6 +19,7 @@ const App = () => {
           <Route path="/" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot" element={<ForgotPassword />} />
+          <Route path="/update-password" element={<UpdatePassword />} />
 
           <Route element={<ProtectedRoute />}>
             <Route

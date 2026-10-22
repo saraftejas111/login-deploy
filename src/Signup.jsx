@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "./supabaseClient";
 
@@ -52,7 +52,7 @@ const Signup = () => {
     try {
       // 1. Register the account
       const { data, error } = await supabase.auth.signUp({
-        email: form.email,
+        email: form.email.trim().toLowerCase(),
         password: form.password,
         options: {
           data: {
@@ -70,6 +70,29 @@ const Signup = () => {
 
       if (!user) {
         throw new Error("Account creation failed.");
+      }
+
+      let profileSaveFailed = false;
+
+      // Keep the profile lookup used by username/mobile login in sync with Auth.
+      // With email confirmation enabled, this write must instead be done by a
+      // database trigger because Supabase returns no authenticated session yet.
+      if (data.session) {
+        const { error: profileError } = await supabase.from("profiles").upsert({
+          id: user.id,
+          firstname: form.firstname.trim(),
+          lastname: form.lastname.trim(),
+          email: form.email.trim().toLowerCase(),
+          mobile: form.mobile.trim(),
+          username: form.username.trim(),
+          securityquestion: form.securityquestion,
+          securityanswer: form.securityanswer.trim(),
+        });
+
+        if (profileError) {
+          profileSaveFailed = true;
+          console.error("Profile creation error:", profileError.message);
+        }
       }
 
       // 2. Upload the image when a session is available
@@ -103,7 +126,12 @@ const Signup = () => {
       if (!data.session) {
         alert(
           "Account created. Confirm your email, then log in. " +
-          "Your profile picture must be uploaded after login."
+          "Your profile picture must be uploaded after login. If you use username/mobile login, create a profiles row with a database trigger after email confirmation."
+        );
+      } else if (profileSaveFailed) {
+        alert(
+          "Your Supabase account was created, but its profile could not be saved. " +
+          "You can log in with your email; username/mobile login needs an insert policy for the profiles table."
         );
       } else {
         alert("Signup successful!");
