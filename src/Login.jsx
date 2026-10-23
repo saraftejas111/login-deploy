@@ -67,8 +67,8 @@ const Login = () => {
           <h2 className="text-2xl font-semibold">Welcome back</h2>
           <p className="mt-1 text-sm text-gray-500">Sign in to continue to your network.</p>
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <label className="block text-sm font-medium">Username, email, or mobile
-              <input type="text" name="username" placeholder="Enter username, email, or mobile" value={form.username} onChange={handleChange} required className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-3 outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-blue-100" />
+            <label className="block text-sm font-medium">Username, email or mobile
+              <input type="text" name="username" placeholder="Enter username, email or mobile" value={form.username} onChange={handleChange} required className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-3 outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-blue-100" />
             </label>
             <label className="block text-sm font-medium">Password
               <input type="password" name="password" placeholder="Enter password" value={form.password} onChange={handleChange} required className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-3 outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-blue-100" />
