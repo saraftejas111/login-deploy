@@ -4,6 +4,10 @@ alter table public.profiles
   add column if not exists securityquestion text,
   add column if not exists securityanswer text;
 
+-- The Edge Function uses the server-only service role to read/update recovery
+-- fields. Do not grant these permissions to anon or authenticated browser clients.
+grant select, update on table public.profiles to service_role;
+
 create or replace function public.create_profile_for_auth_user()
 returns trigger
 language plpgsql
@@ -65,6 +69,26 @@ where not exists (
   select 1 from public.profiles as existing where existing.id = users.id
 )
 on conflict (id) do nothing;
+
+-- If a profile already existed, fill its recovery fields from signup metadata
+-- when present. Older signups that never saved these values cannot be restored.
+update public.profiles as profile
+set securityquestion = coalesce(
+      nullif(profile.securityquestion, ''),
+      nullif(users.raw_user_meta_data ->> 'securityquestion', '')
+    ),
+    securityanswer = coalesce(
+      nullif(profile.securityanswer, ''),
+      nullif(users.raw_user_meta_data ->> 'securityanswer', '')
+    )
+from auth.users as users
+where profile.id = users.id
+  and (
+    nullif(profile.securityquestion, '') is null
+    or nullif(profile.securityanswer, '') is null
+  )
+  and nullif(users.raw_user_meta_data ->> 'securityquestion', '') is not null
+  and nullif(users.raw_user_meta_data ->> 'securityanswer', '') is not null;
 
 -- Rate-limit calls to the public account-access Edge Function.
 create table if not exists public.account_access_rate_limits (

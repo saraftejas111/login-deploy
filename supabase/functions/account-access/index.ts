@@ -56,6 +56,13 @@ async function rowsFor(column: "email" | "username" | "mobile", value: string) {
   return data ?? [];
 }
 
+function normalizeIndianMobile(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (/^[6-9]\d{9}$/.test(digits)) return `+91${digits}`;
+  if (/^91[6-9]\d{9}$/.test(digits)) return `+${digits}`;
+  return value;
+}
+
 async function findProfile(identifier: string) {
   const raw = identifier.trim();
   if (!raw || raw.length > 254) throw new RequestError("Enter your username, email, or mobile number.");
@@ -64,9 +71,10 @@ async function findProfile(identifier: string) {
   if (raw.includes("@")) {
     matches = await rowsFor("email", raw.toLowerCase());
   } else {
+    const mobileIdentifier = normalizeIndianMobile(raw);
     const [usernames, mobiles] = await Promise.all([
       rowsFor("username", raw.toLowerCase()),
-      rowsFor("mobile", raw),
+      rowsFor("mobile", mobileIdentifier),
     ]);
     matches = [...usernames, ...mobiles];
   }
@@ -114,6 +122,24 @@ async function verifyAnswer(answer: string, storedValue: string | null) {
   return difference === 0;
 }
 
+async function hashAnswer(answer: string) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(normalizeAnswer(answer)),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+  const hash = new Uint8Array(await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: 210000, hash: "SHA-256" },
+    key,
+    256,
+  ));
+  const base64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
+  return `pbkdf2-sha256$210000$${base64(salt)}$${base64(hash)}`;
+}
+
 async function consumeAttempt(request: Request, identifier: string) {
   const clientIp = (request.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
   const rawKey = `${clientIp}|${identifier.trim().toLowerCase()}`;
@@ -136,7 +162,7 @@ Deno.serve(async (request) => {
     const body = await request.json();
     const action = String(body.action ?? "");
     const identifier = String(body.identifier ?? "");
-    await consumeAttempt(request, identifier);
+    if (action !== "set-security-question") await consumeAttempt(request, identifier);
 
     if (action === "login") {
       const password = String(body.password ?? "");
@@ -154,6 +180,9 @@ Deno.serve(async (request) => {
       });
       if (error || !data.session) {
         throw new RequestError("Invalid username, email, mobile number, or password.", 401);
+      }
+      if (!data.user.email_confirmed_at) {
+        throw new RequestError("Verify your email before signing in.", 403);
       }
       return json({ session: data.session });
     }
@@ -178,6 +207,49 @@ Deno.serve(async (request) => {
       const { error } = await admin.auth.admin.updateUserById(profile.id, { password: newPassword });
       if (error) throw new RequestError(`Password update failed: ${error.message}`, 500);
       return json({ updated: true });
+    }
+
+    if (action === "set-security-question") {
+      const authorization = request.headers.get("Authorization");
+      if (!authorization?.startsWith("Bearer ")) {
+        throw new RequestError("Please log in before setting a recovery question.", 401);
+      }
+
+      const userClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authorization } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: userData, error: userError } = await userClient.auth.getUser();
+      if (userError || !userData.user) {
+        throw new RequestError("Your login session expired. Please log in again.", 401);
+      }
+
+      const allowedQuestions = new Set([
+        "What is Your Pet Name?",
+        "What is Your Best Friend Name?",
+        "What is Your Teacher Name?",
+        "What is Your Hobby?",
+      ]);
+      const securityQuestion = String(body.securityQuestion ?? "");
+      const securityAnswer = String(body.securityAnswer ?? "");
+      if (!allowedQuestions.has(securityQuestion)) {
+        throw new RequestError("Choose a valid security question.");
+      }
+      if (normalizeAnswer(securityAnswer).length < 2 || securityAnswer.length > 200) {
+        throw new RequestError("Enter a security answer between 2 and 200 characters.");
+      }
+
+      const { data: updatedProfile, error } = await admin
+        .from("profiles")
+        .update({ securityquestion: securityQuestion, securityanswer: await hashAnswer(securityAnswer) })
+        .eq("id", userData.user.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw new RequestError(`Could not save the recovery question: ${error.message}`, 500);
+      if (!updatedProfile) {
+        throw new RequestError("Your profile is missing. Run the Supabase setup SQL, then try again.", 404);
+      }
+      return json({ saved: true });
     }
 
     throw new RequestError("Unsupported account action.");

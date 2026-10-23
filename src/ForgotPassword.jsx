@@ -56,11 +56,18 @@ const ForgotPassword = () => {
   };
 
   return (
-    <div>
-      <h2>Forgot password</h2>
+    <div className="min-h-screen bg-[#f3f2ef]">
+      <header className="mx-auto max-w-6xl px-5 py-5">
+        <NavLink to="/" className="flex w-fit items-center gap-2 text-2xl font-bold text-[#0a66c2]"><span className="grid h-9 w-9 place-items-center rounded bg-[#0a66c2] text-lg text-white">in</span>TKA Network</NavLink>
+      </header>
+      <main className="mx-auto max-w-md px-5 pb-12 pt-8">
+      <section className="rounded-xl border border-gray-200 bg-white p-7 shadow-sm sm:p-9">
+      <h1 className="text-2xl font-semibold">Reset your password</h1>
+      <p className="mt-2 text-sm text-gray-600">Find your account, then answer the security question you set when you signed up.</p>
 
       {step === "lookup" && (
-        <form onSubmit={(event) => run(event, "question")}>
+        <form className="mt-6 space-y-4" onSubmit={(event) => run(event, "question")}>
+          <label className="block text-sm font-medium">Username, email, or mobile
           <input
             type="text"
             value={identifier}
@@ -68,32 +75,38 @@ const ForgotPassword = () => {
             placeholder="Enter username, email, or mobile"
             autoComplete="username"
             required
+            className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-3 outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-blue-100"
           />
-          <button type="submit" disabled={busy}>
+          </label>
+          <button className="w-full rounded-full bg-[#0a66c2] py-3 font-semibold text-white hover:bg-[#004182] disabled:opacity-60" type="submit" disabled={busy}>
             {busy ? "Checking..." : "Find account"}
           </button>
         </form>
       )}
 
       {step === "answer" && (
-        <form onSubmit={(event) => run(event, "verify")}>
-          <p>{question}</p>
+        <form className="mt-6 space-y-4" onSubmit={(event) => run(event, "verify")}>
+          <p className="rounded-md bg-blue-50 p-3 text-sm font-medium text-gray-800">{question}</p>
+          <label className="block text-sm font-medium">Your answer
           <input
             type="text"
             value={answer}
             onChange={(event) => setAnswer(event.target.value)}
             placeholder="Your security answer"
             required
+            className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-3 outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-blue-100"
           />
-          <button type="submit" disabled={busy}>
+          </label>
+          <button className="w-full rounded-full bg-[#0a66c2] py-3 font-semibold text-white hover:bg-[#004182] disabled:opacity-60" type="submit" disabled={busy}>
             {busy ? "Checking..." : "Verify answer"}
           </button>
         </form>
       )}
 
       {step === "password" && (
-        <form onSubmit={(event) => run(event, "change")}>
-          <p>Answer verified. Choose a new password.</p>
+        <form className="mt-6 space-y-4" onSubmit={(event) => run(event, "change")}>
+          <p className="rounded-md bg-green-50 p-3 text-sm text-green-800">Answer verified. Choose a new password.</p>
+          <label className="block text-sm font-medium">New password
           <input
             type="password"
             value={newPassword}
@@ -102,16 +115,20 @@ const ForgotPassword = () => {
             autoComplete="new-password"
             minLength={6}
             required
+            className="mt-1.5 w-full rounded-md border border-gray-300 px-3 py-3 outline-none focus:border-[#0a66c2] focus:ring-2 focus:ring-blue-100"
           />
-          <button type="submit" disabled={busy}>
+          </label>
+          <button className="w-full rounded-full bg-[#0a66c2] py-3 font-semibold text-white hover:bg-[#004182] disabled:opacity-60" type="submit" disabled={busy}>
             {busy ? "Changing..." : "Change password"}
           </button>
         </form>
       )}
 
-      {error && <p role="alert">{error}</p>}
-      {message && <p role="status">{message}</p>}
-      <p><NavLink to="/">Back to login</NavLink></p>
+      {error && <p role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {message && <p role="status" className="mt-4 rounded-md bg-green-50 p-3 text-sm text-green-700">{message}</p>}
+      <p className="mt-6 text-center text-sm"><NavLink className="font-semibold text-[#0a66c2] hover:underline" to="/">Back to sign in</NavLink></p>
+      </section>
+      </main>
     </div>
   );
 };
